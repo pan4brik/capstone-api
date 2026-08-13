@@ -1,9 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+from httpx import AsyncClient, RequestError
 from pydantic import BaseModel
 
 app = FastAPI()
 
 my_notes = [{'title': 'note 1'}, {'title': 'note 2'}, {'title': 'note 3'}]
+BASE_URL = 'https://api.frankfurter.dev/v2'
 
 
 class Note(BaseModel):
@@ -18,6 +20,22 @@ async def get_health():
 @app.get('/notes', response_model=list[Note])
 async def get_notes():
     return my_notes
+
+
+@app.get('/rates')
+async def get_exchange_rates():
+    try:
+        async with AsyncClient(
+            base_url=BASE_URL
+        ) as ac:
+            response = await ac.get('/rates')
+
+        if (response.status_code != status.HTTP_200_OK):
+            return {'status': 'external api failure'}
+
+        return response.json()
+    except RequestError:
+        return {'status': 'cannot reach external api'}
 
 
 @app.post('/notes', response_model=Note)
