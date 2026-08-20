@@ -1,11 +1,21 @@
 from fastapi import FastAPI, status
+from fastapi.middleware.cors import CORSMiddleware
 from httpx import AsyncClient, RequestError
 from pydantic import BaseModel
 
 app = FastAPI()
 
 my_notes = [{'title': 'note 1'}, {'title': 'note 2'}, {'title': 'note 3'}]
+origins = ['http://localhost:3000']
+
 BASE_URL = 'https://api.frankfurter.dev/v2'
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=['GET']
+)
 
 
 class Note(BaseModel):
