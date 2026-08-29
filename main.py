@@ -3,9 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from httpx import AsyncClient, RequestError
 from pydantic import BaseModel
 
+
+class Note(BaseModel):
+    title: str
+
+
 app = FastAPI()
 
-my_notes = [{'title': 'note 1'}, {'title': 'note 2'}, {'title': 'note 3'}]
+my_notes = [Note(title='note 1'), Note(title='note 2'), Note(title='note 3')]
 origins = ['http://localhost:3000']
 
 BASE_URL = 'https://api.frankfurter.dev/v2'
@@ -16,10 +21,6 @@ app.add_middleware(
     allow_origins=origins,
     allow_methods=['GET']
 )
-
-
-class Note(BaseModel):
-    title: str
 
 
 @app.get('/health')
@@ -40,7 +41,7 @@ async def get_exchange_rates():
         ) as ac:
             response = await ac.get('/rates')
 
-        if (response.status_code != status.HTTP_200_OK):
+        if response.status_code != status.HTTP_200_OK:
             return {'status': 'external api failure'}
 
         return response.json()
