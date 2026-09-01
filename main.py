@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from httpx import AsyncClient, RequestError
@@ -12,6 +13,9 @@ app = FastAPI()
 
 my_notes = [Note(title='note 1'), Note(title='note 2'), Note(title='note 3')]
 origins = ['http://localhost:3000']
+
+if frontend_origin := os.environ.get('FRONTEND_ORIGIN'):
+    origins.append(frontend_origin)
 
 BASE_URL = 'https://api.frankfurter.dev/v2'
 
