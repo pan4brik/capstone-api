@@ -1,6 +1,5 @@
 import os
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
-from fastapi.middleware.cors import CORSMiddleware
 from httpx import AsyncClient, RequestError
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -31,11 +30,6 @@ async def require_bff_secret(x_bff_secret: str | None = Header(default=None)):
         raise HTTPException(status_code=401, detail='invalid or missing BFF secret')
 
 
-origins = ['http://localhost:3000']
-
-if frontend_origin := os.environ.get('FRONTEND_ORIGIN'):
-    origins.append(frontend_origin)
-
 BASE_URL = 'https://api.frankfurter.dev/v2'
 
 GEMINI_MODEL = 'gemini-flash-lite-latest'
@@ -51,13 +45,6 @@ MAX_QUESTION_LEN = 500
 MAX_NOTES_IN_PROMPT = 20
 MAX_BODY_CHARS = 500
 MAX_ANSWER_TOKENS = 256
-
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_methods=['GET']
-)
 
 
 @app.get('/health')
