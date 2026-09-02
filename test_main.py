@@ -77,3 +77,22 @@ def test_create_note():
     assert create_note_response.status_code == 200
     assert get_notes_response.status_code == 200
     assert create_note_response.json() in get_notes_response.json()
+
+    created = create_note_response.json()
+    assert set(created) == {"id", "title", "body"}
+    assert created["id"]
+    assert created["body"] == ""
+
+
+def test_create_note_with_body():
+    test_note = {"title": "Has a body", "body": "some detail"}
+
+    response = client.post('/notes', json=test_note)
+
+    assert response.status_code == 200
+    assert response.json()["body"] == "some detail"
+
+
+def test_create_note_rejects_empty_title():
+    assert client.post('/notes', json={"title": ""}).status_code == 422
+    assert client.post('/notes', json={"body": "no title"}).status_code == 422

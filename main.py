@@ -1,17 +1,19 @@
 import os
-from fastapi import FastAPI, status
+from fastapi import Depends, FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from httpx import AsyncClient, RequestError
-from pydantic import BaseModel
 
-
-class Note(BaseModel):
-    title: str
-
+from repository import InMemoryNotesRepository, Note, NoteCreate, NotesRepository
 
 app = FastAPI()
 
-my_notes = [Note(title='note 1'), Note(title='note 2'), Note(title='note 3')]
+notes_repo: NotesRepository = InMemoryNotesRepository()
+
+
+def get_notes_repo() -> NotesRepository:
+    return notes_repo
+
+
 origins = ['http://localhost:3000']
 
 if frontend_origin := os.environ.get('FRONTEND_ORIGIN'):
@@ -33,8 +35,8 @@ async def get_health():
 
 
 @app.get('/notes', response_model=list[Note])
-async def get_notes():
-    return my_notes
+async def get_notes(repo: NotesRepository = Depends(get_notes_repo)):
+    return await repo.list_notes()
 
 
 @app.get('/rates')
@@ -54,6 +56,7 @@ async def get_exchange_rates():
 
 
 @app.post('/notes', response_model=Note)
-async def create_note(note: Note):
-    my_notes.append(note)
-    return note
+async def create_note(
+    note: NoteCreate, repo: NotesRepository = Depends(get_notes_repo)
+):
+    return await repo.add_note(note)
