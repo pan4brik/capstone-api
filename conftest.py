@@ -5,7 +5,10 @@ from repository import InMemoryNotesRepository
 
 
 @pytest.fixture(autouse=True)
-def reset_notes_repo():
-    """Give every test a fresh in-memory store so create tests don't leak."""
+def reset_state():
+    """Fresh in-memory store per test; rate limiter off unless a test opts in."""
     main.notes_repo = InMemoryNotesRepository()
+    main.limiter.reset()
+    main.limiter.enabled = False
     yield
+    main.limiter.enabled = True

@@ -96,3 +96,90 @@ def test_create_note_with_body():
 def test_create_note_rejects_empty_title():
     assert client.post('/notes', json={"title": ""}).status_code == 422
     assert client.post('/notes', json={"body": "no title"}).status_code == 422
+
+
+def _fake_gemini_post(payload=None, status_code=200):
+    async def fake_post(self, url, **kwargs):
+        return FakeResponse(status_code=status_code, payload=payload)
+
+    return fake_post
+
+
+def _candidate(text):
+    return {"candidates": [{"content": {"parts": [{"text": text}]}}]}
+
+
+def test_ask_returns_answer(monkeypatch):
+    monkeypatch.setattr(
+        main.AsyncClient, "post", _fake_gemini_post(_candidate("Dentist is Tuesday."))
+    )
+
+    response = client.post('/ask', json={"question": "When is the dentist?"})
+
+    assert response.status_code == 200
+    assert response.json() == {"answer": "Dentist is Tuesday."}
+
+
+def test_ask_answer_not_in_notes(monkeypatch):
+    monkeypatch.setattr(
+        main.AsyncClient, "post", _fake_gemini_post(_candidate("I don't know."))
+    )
+
+    response = client.post('/ask', json={"question": "What's the capital of Peru?"})
+
+    assert response.status_code == 200
+    assert response.json() == {"answer": "I don't know."}
+
+
+def test_ask_upstream_error(monkeypatch):
+    monkeypatch.setattr(main.AsyncClient, "post", _fake_gemini_post(status_code=500))
+
+    response = client.post('/ask', json={"question": "hi"})
+
+    assert response.status_code == 200
+    assert response.json() == {"error": "llm api failure"}
+
+
+def test_ask_unreachable(monkeypatch):
+    async def fake_post(self, url, **kwargs):
+        raise httpx.RequestError("simulated network failure")
+
+    monkeypatch.setattr(main.AsyncClient, "post", fake_post)
+
+    response = client.post('/ask', json={"question": "hi"})
+
+    assert response.status_code == 200
+    assert response.json() == {"error": "cannot reach llm api"}
+
+
+def test_ask_safety_blocked(monkeypatch):
+    monkeypatch.setattr(
+        main.AsyncClient,
+        "post",
+        _fake_gemini_post({"promptFeedback": {"blockReason": "SAFETY"}, "candidates": []}),
+    )
+
+    response = client.post('/ask', json={"question": "hi"})
+
+    assert response.status_code == 200
+    assert response.json() == {"error": "no answer produced"}
+
+
+def test_ask_rejects_long_question():
+    response = client.post('/ask', json={"question": "x" * 501})
+
+    assert response.status_code == 422
+
+
+def test_ask_is_rate_limited(monkeypatch):
+    monkeypatch.setattr(
+        main.AsyncClient, "post", _fake_gemini_post(_candidate("ok"))
+    )
+    main.limiter.enabled = True
+
+    statuses = [
+        client.post('/ask', json={"question": "hi"}).status_code for _ in range(11)
+    ]
+
+    assert statuses[:10] == [200] * 10
+    assert statuses[10] == 429
