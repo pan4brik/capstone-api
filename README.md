@@ -1,10 +1,15 @@
 # capstone-api
 
 A small FastAPI backend with several endpoints — a health check, an in-memory
-notes list (`GET`/`POST /notes`), and `GET /rates`, which calls the external
-Frankfurter API (`api.frankfurter.dev`) for live currency data. Ships with a
-pytest suite (the external call is mocked) that runs on every push via GitHub
+notes list (`GET`/`POST /notes`), `GET /rates` (live currency data from the
+external Frankfurter API, `api.frankfurter.dev`), and `POST /ask` (answers a
+question grounded only in the stored notes, via the Gemini API). Ships with a
+pytest suite (external calls are mocked) that runs on every push via GitHub
 Actions.
+
+There is no CORS layer — a Next.js BFF is the only intended caller, and every
+endpoint except `/health` and `GET /rates` requires a shared secret (see
+Configuration below).
 
 ## Requirements
 
@@ -50,21 +55,37 @@ Other shells: fish → `source my-venv/bin/activate.fish` · Git Bash on Windows
 API on http://localhost:8000 — interactive docs at http://localhost:8000/docs.
 Stop with Ctrl+C; leave the venv with `deactivate`.
 
+## Configuration
+
+| Variable            | Required | Purpose                                                          |
+|---------------------|----------|-------------------------------------------------------------------|
+| `BFF_SHARED_SECRET` | yes | `GET /notes`, `POST /notes`, and `POST /ask` reject every request unless it carries a matching `X-BFF-Secret` header. |
+| `GEMINI_API_KEY`     | yes, for `/ask` | Sent to the Gemini API; without it `/ask` returns `{"error": "llm api failure"}`. |
+
+The BFF should also forward an `X-BFF-User-Id` header identifying the
+end user on each write request. The rate limiter budgets `POST /notes` and
+`POST /ask` together (`10/minute; 200/day`) per that id; without it, all
+traffic through the BFF is budgeted together as one caller, since the API
+otherwise sees only the BFF's own address.
+
 ## Test it
 
     python -m pytest -q
 
 ## Endpoints
 
-| Method | Path      | Description                                    |
-|--------|-----------|-----------------------------------------------|
-| GET    | `/health` | liveness check                                |
-| GET    | `/notes`  | list notes                                    |
-| POST   | `/notes`  | add a note — JSON body `{"title": "..."}`     |
-| GET    | `/rates`  | live exchange rates via `api.frankfurter.dev` |
+| Method | Path      | Description                                                     |
+|--------|-----------|-------------------------------------------------------------------|
+| GET    | `/health` | liveness check                                                   |
+| GET    | `/notes`  | list notes, requires `X-BFF-Secret`                              |
+| POST   | `/notes`  | add a note — JSON body `{"title": "...", "body": "..."}`, requires `X-BFF-Secret` |
+| GET    | `/rates`  | live exchange rates via `api.frankfurter.dev`                    |
+| POST   | `/ask`    | answer a question grounded in the stored notes — JSON body `{"question": "..."}`, requires `X-BFF-Secret` |
 
 ## Known gaps
 
-- Notes live in an in-memory list — no database, no stable `id`, and they reset
-  every time the server restarts.
-- CORS currently allows only `GET` requests from `http://localhost:3000`.
+- Notes live in an in-memory list — no database, and they reset every time the
+  server restarts.
+- Notes are a single pool shared by every caller — there's no per-user
+  ownership or isolation. A note written by anyone is visible via `GET /notes`
+  and used to ground `POST /ask` answers for everyone else.
