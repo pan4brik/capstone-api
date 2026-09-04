@@ -33,6 +33,14 @@ def test_get_notes():
     assert type(response.json()) is list
 
 
+def test_get_notes_rejects_missing_secret():
+    anon_client = TestClient(app)
+
+    response = anon_client.get('/notes')
+
+    assert response.status_code == 401
+
+
 def test_get_exchange_rates(monkeypatch):
     async def fake_get(self, url):
         return FakeResponse(status_code=200, payload=[{"base": "EUR", "rate": 1.0}])
@@ -208,6 +216,21 @@ def test_ask_is_rate_limited(monkeypatch):
 
     assert statuses[:10] == [200] * 10
     assert statuses[10] == 429
+
+
+def test_write_rate_limit_is_shared_across_notes_and_ask(monkeypatch):
+    monkeypatch.setattr(main.AsyncClient, "post", _fake_gemini_post(_candidate("ok")))
+    main.limiter.enabled = True
+
+    for _ in range(5):
+        assert client.post('/notes', json={"title": "x"}).status_code == 200
+
+    statuses = [
+        client.post('/ask', json={"question": "hi"}).status_code for _ in range(6)
+    ]
+
+    assert statuses[:5] == [200] * 5
+    assert statuses[5] == 429
 
 
 def test_ask_rate_limit_is_scoped_per_bff_user(monkeypatch):

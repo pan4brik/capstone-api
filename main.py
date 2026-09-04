@@ -61,7 +61,10 @@ async def get_health():
 
 
 @app.get('/notes', response_model=list[Note])
-async def get_notes(repo: NotesRepository = Depends(get_notes_repo)):
+async def get_notes(
+    repo: NotesRepository = Depends(get_notes_repo),
+    _: None = Depends(require_bff_secret),
+):
     return await repo.list_notes()
 
 
@@ -82,7 +85,7 @@ async def get_exchange_rates():
 
 
 @app.post('/notes', response_model=Note)
-@limiter.limit(WRITE_RATE_LIMIT)
+@limiter.shared_limit(WRITE_RATE_LIMIT, scope='writes')
 async def create_note(
     request: Request,
     note: NoteCreate,
@@ -115,7 +118,7 @@ def extract_answer(payload: dict) -> str | None:
 
 
 @app.post('/ask')
-@limiter.limit(WRITE_RATE_LIMIT)
+@limiter.shared_limit(WRITE_RATE_LIMIT, scope='writes')
 async def ask_notes(
     request: Request,
     payload: Question,
