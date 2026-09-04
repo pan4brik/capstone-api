@@ -7,8 +7,8 @@ SEED_TITLES = ('note 1', 'note 2', 'note 3')
 
 
 class NoteCreate(BaseModel):
-    title: str = Field(min_length=1)
-    body: str = ''
+    title: str = Field(min_length=1, max_length=200)
+    body: str = Field(default='', max_length=2000)
 
 
 class Note(NoteCreate):

@@ -1,7 +1,12 @@
+import os
+
 import pytest
 
 import main
 from repository import InMemoryNotesRepository
+
+TEST_BFF_SECRET = 'test-secret'
+os.environ['BFF_SHARED_SECRET'] = TEST_BFF_SECRET
 
 
 @pytest.fixture(autouse=True)

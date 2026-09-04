@@ -1,4 +1,5 @@
 import os
+import secrets
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from httpx import AsyncClient, RequestError
 from pydantic import BaseModel, Field
@@ -10,7 +11,14 @@ from repository import InMemoryNotesRepository, Note, NoteCreate, NotesRepositor
 
 app = FastAPI()
 
-limiter = Limiter(key_func=get_remote_address)
+
+def rate_limit_key(request: Request) -> str:
+    """Per-BFF-user budget when the BFF forwards X-BFF-User-Id; else per remote address."""
+    user_id = request.headers.get('x-bff-user-id')
+    return user_id or get_remote_address(request)
+
+
+limiter = Limiter(key_func=rate_limit_key)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -24,9 +32,9 @@ def get_notes_repo() -> NotesRepository:
 
 
 async def require_bff_secret(x_bff_secret: str | None = Header(default=None)):
-    """No-op unless BFF_SHARED_SECRET is set; then the header must match."""
+    """BFF_SHARED_SECRET must be set and the header must match it."""
     expected = os.environ.get('BFF_SHARED_SECRET')
-    if expected and x_bff_secret != expected:
+    if not expected or not secrets.compare_digest(x_bff_secret or '', expected):
         raise HTTPException(status_code=401, detail='invalid or missing BFF secret')
 
 
