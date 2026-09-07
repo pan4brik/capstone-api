@@ -11,6 +11,9 @@ There is no CORS layer — a Next.js BFF is the only intended caller, and every
 endpoint except `/health` and `GET /rates` requires a shared secret (see
 Configuration below).
 
+**Live:** https://capstone-api-f54u.onrender.com — interactive docs at
+https://capstone-api-f54u.onrender.com/docs.
+
 ## Requirements
 
 - Python 3.10 or newer — check with `python --version` (or `python3 --version`).
@@ -62,6 +65,11 @@ Stop with Ctrl+C; leave the venv with `deactivate`.
 | `BFF_SHARED_SECRET` | yes | `GET /notes`, `POST /notes`, and `POST /ask` reject every request unless it carries a matching `X-BFF-Secret` header. |
 | `GEMINI_API_KEY`     | yes, for `/ask` | Sent to the Gemini API; without it `/ask` returns `{"error": "llm api failure"}`. |
 
+`GEMINI_MODEL` in `main.py` is pinned to the `gemini-flash-lite-latest` alias.
+There's no automatic fallback — if that model is deprecated or the paid quota
+is exhausted, switch `GEMINI_MODEL` to the free-tier `gemini-flash-latest`
+alias by hand and redeploy.
+
 The BFF should also forward an `X-BFF-User-Id` header identifying the
 end user on each write request. The rate limiter budgets `POST /notes` and
 `POST /ask` together (`10/minute; 200/day`) per that id; without it, all
@@ -89,3 +97,9 @@ otherwise sees only the BFF's own address.
 - Notes are a single pool shared by every caller — there's no per-user
   ownership or isolation. A note written by anyone is visible via `GET /notes`
   and used to ground `POST /ask` answers for everyone else.
+
+## Changelog
+
+- **Breaking:** notes are now `{"id": "...", "title": "...", "body": "..."}`
+  (previously title-only, keyed on title). `GET`/`POST /notes` and `POST /ask`
+  all use this shape.
